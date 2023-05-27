@@ -33,6 +33,7 @@ last_in_lane = {
     'lane2_up':707,
     
 }
+global transition_screen_start_time
 global stop_points 
 stop_points =  {'stop1_up':[257,280], 'stop1_right':[240,250], 'stop1_left':730, 'stop1_down':[265,240],
                 'stop2_right':685,
@@ -134,7 +135,7 @@ class TransitionScreen:
         self.header_font = pygame.font.Font(None, 48)
         self.header_text = self.header_font.render("Night Mode", True, (255, 255, 255))
         self.header_rect = self.header_text.get_rect(center=(1000 // 2, 563// 2))
-        self.start_time = time.time()
+        
     
     def update(self):
         # Calculate the elapsed time
@@ -211,11 +212,11 @@ class PedestrianSignal:
         screen.blit(self.image, (self.x, self.y))    
             
 class PulsatingTrafficSignal(TrafficSignal):
-    def __init__(self, x, y, direction, red_span, yellow_span, green_span, pulsate_duration):
+    def __init__(self, x, y, direction, red_span, yellow_span, green_span):
         super().__init__(x, y, direction, 'off', red_span, yellow_span, green_span)
         
-        self.image_on = pygame.image.load(f"./images/{self.direction}/yellow_light_{self.direction}.png")
-        self.image_off = pygame.image.load(f"./images/{self.direction}/green_light_{self.direction}.png")
+        self.image_on = pygame.image.load(f"./images/up/yellow.png")
+        self.image_off = pygame.image.load(f"./images/up/green.png")
         self.image = self.image_off
     def start_pulsating(self):
         self.pulsating = True
@@ -355,7 +356,7 @@ class Vehicle(pygame.sprite.Sprite):
         screen.blit(self.image, (self.x, self.y))
 
 # Generating vehicles in the simulation
-def generateVehicles():
+def generateVehicles(sleep_time):
     while(True):
         # Generating vehicles
         
@@ -379,7 +380,7 @@ def generateVehicles():
         vehicles.append(Vehicle(vehicleTypes[type],lanes[list(lanes.keys())[2]][0],lanes[list(lanes.keys())[2]][1],1,'left'))
         vehicles.append(Vehicle(vehicleTypes[type],lanes[list(lanes.keys())[4]][0],lanes[list(lanes.keys())[4]][1],1,'down'))
         vehicles.append(Vehicle(vehicleTypes[type],lanes[list(lanes.keys())[5]][0],lanes[list(lanes.keys())[5]][1],1,'up'))
-        time.sleep(4)
+        time.sleep(sleep_time)
 
 
 class Main:
@@ -441,14 +442,14 @@ class Main:
     green_span = 3
     pulsate_duration = 50
 
-    pulsating_signal = PulsatingTrafficSignal(200, 200, direction, red_span, yellow_span, green_span, pulsate_duration)     
+    pulsating_signal = PulsatingTrafficSignal(430, 200, direction, red_span, yellow_span, green_span)     
     #turnsignal_up_right = TurnSignal(turnSignal[1][0]-25,turnSignal[1][1],'up','right','green',10,15)
     #########################################################
     signal_down = TrafficSignal(signalCoods[3][0],signalCoods[3][1],'down','green',15,5,10)
     signal2_down = TrafficSignal(680,240,'down','green',15,5,10)
     
     #Generate vehicles
-    thread = threading.Thread(name="generateVehicles",target=generateVehicles, args=()) 
+    thread = threading.Thread(name="generateVehicles",target=generateVehicles, args=(4,)) 
     thread.daemon = True
     thread.start()
         
@@ -463,6 +464,10 @@ class Main:
                     waiting = True
             elif off_button.handle_event(event):
                     pulsating = True
+                    transition_screen_start_time = time.time()
+                    for vehicle in  vehicles:
+                        vehicle.kill()
+                    thread = threading.Thread(name="generateVehicles",target=generateVehicles, args=(20,)) 
         screen.blit(background,(0,0))   # display background in simulation
         navbar.draw(screen, font)       # display navigation bar
         start_button.draw(screen, font) #display start button
@@ -492,15 +497,16 @@ class Main:
                 if event.type == pygame.QUIT:
                     sys.exit()
                 elif start_button.handle_event(event):
-                    pulsating = False 
+                    pulsating = False
+                    thread = threading.Thread(name="generateVehicles",target=generateVehicles, args=(4,))
              # Clear the screen
             screen.fill((0, 0, 0))
     
             # Calculate the elapsed time
-            elapsed_time = time.time() - transition_screen.start_time
+            elapsed_time = time.time() - transition_screen_start_time
     
             # Render the transition screen for 4 seconds
-            while elapsed_time <= 4.0:
+            while elapsed_time <= 2.0:
                 transition_screen.render(screen)
                 pygame.display.update()
                 elapsed_time = time.time() - pulsating_start_time
@@ -515,9 +521,13 @@ class Main:
             pulsating_signal.start_pulsating()
             pulsating_signal.pulsating_render(screen)
 
-            # Render and change the state of other signals here
+            for vehicle in vehicles:            
+                    vehicle.move('green')
+                    vehicle.render(screen)                      
+                            
+            
+            pygame.display.update() 
 
-            pygame.display.update()
 
         
         #############################
